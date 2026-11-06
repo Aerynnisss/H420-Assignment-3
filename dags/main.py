@@ -22,4 +22,6 @@ def my_dag():
   def task_d():
     print("a")
 
-  chain(task_a(), [task_b(), task_c()], [task_d()])
+  chain(task_a(), [task_b(), task_c()], task_d())
+
+my_dag()
