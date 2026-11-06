@@ -2,6 +2,7 @@ from airflow.sdk import dag, task
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk.bases.operator import chain
+from pymupdf4llm import to_markdown
 
 @dag(schedule=None, description="test")
 def my_dag():
@@ -10,9 +11,15 @@ def my_dag():
   def task_a():
     print("a")
 
+  # Input: filename WITHOUT path OR suffix!
+  # Example: convert("Assignment 3") -> this takes library/papers/Assignment 3.pdf
+  # The library suggests installing RapidOCR, do so in the airflow venv.
   @task
-  def task_b():
-    print("a")
+  def convert(filename: str):
+    markdown = to_markdown(f"library/papers/{filename}.pdf")
+
+    with open(f"library/output/{filename}.md", "w", encoding="utf-8") as file:
+      file.write(markdown)
 
   @task
   def task_c():
@@ -22,6 +29,6 @@ def my_dag():
   def task_d():
     print("a")
 
-  chain(task_a(), [task_b(), task_c()], task_d())
+  # convert >>
 
 my_dag()
