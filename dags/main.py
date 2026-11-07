@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import cast
 
 from airflow.sdk import dag, task
-from helpers.db import get_connection, initialize_database, insert_paper
+from helpers.db import generate_html, get_connection, initialize_database, insert_paper
 from helpers.llm_metadata import extract_metadata
 from pymupdf4llm import to_markdown
 
@@ -88,10 +88,18 @@ def paper_processing():
         finally:
             conn.close()
 
+    # Always runs even if everything else is skipped
+    @task
+    def regen_html():
+        html = generate_html()
+        with open("library/output/index.html", "w", encoding="utf-8") as file:
+            file.write(html)
+
     filenames = discover_pdfs()
     converted = convert.expand(filename=filenames)
     metadata = llm_extract.expand(converted=converted)
     store.expand(paper=metadata)
+    regen_html()
 
 
 init_database()

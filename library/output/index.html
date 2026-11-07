@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>Paper Library</h1>
+
+    <div class="filters">
+        <input
+            id="search"
+            type="search"
+            placeholder="Search papers..."
+        >
+
+        <select id="category">
+            <option value="">All categories</option>
+            <option value="Data Engineering">Data Engineering</option>
+        </select>
+    </div>
+
+    <p id="count"></p>
+
+    <main id="papers">
+        
+        <article class="paper"
+                 data-category="Data Engineering"
+                 data-search="Assignment 3 INFO-H420 Process Modeling, Data Pipelines, and Responsible AI Build a small local pipeline that turns research PDFs into a searchable study library using Apache Airflow and a locally served LLM. The pipeline should convert PDFs to Markdown, ask the LLM to generate metadata, and save it to a local SQLite database. Data Engineering apache airflow discord webhook locally served llm pdf to markdown sqlite database">
+
+            <h2>INFO-H420 Process Modeling, Data Pipelines, and Responsible AI</h2>
+
+            <p class="meta">
+                Data Engineering
+                &middot;
+                Assignment 3
+            </p>
+
+            <p>Build a small local pipeline that turns research PDFs into a searchable study library using Apache Airflow and a locally served LLM. The pipeline should convert PDFs to Markdown, ask the LLM to generate metadata, and save it to a local SQLite database.</p>
+
+            <p class="keywords">
+                <strong>Keywords:</strong> apache airflow, discord webhook, locally served llm, pdf to markdown, sqlite database
+            </p>
+        </article>
+        
+    </main>
+
+    <script>
+        const searchInput = document.getElementById("search");
+        const categorySelect = document.getElementById("category");
+        const papers = [...document.querySelectorAll(".paper")];
+        const count = document.getElementById("count");
+
+        function filterPapers() {
+            const query = searchInput.value.trim().toLocaleLowerCase();
+            const category = categorySelect.value;
+
+            let visible = 0;
+
+            for (const paper of papers) {
+                const matchesSearch =
+                    paper.dataset.search.toLocaleLowerCase().includes(query);
+
+                const matchesCategory =
+                    !category || paper.dataset.category === category;
+
+                paper.hidden = !(matchesSearch && matchesCategory);
+
+                if (!paper.hidden) visible++;
+            }
+
+            count.textContent = `${visible} of ${papers.length} papers`;
+        }
+
+        searchInput.addEventListener("input", filterPapers);
+        categorySelect.addEventListener("change", filterPapers);
+
+        filterPapers();
+    </script>
+</body>
+</html>
