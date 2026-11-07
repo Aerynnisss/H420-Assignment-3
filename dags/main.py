@@ -11,7 +11,7 @@ from pymupdf4llm import to_markdown
 
 @dag(dag_id="init_database", schedule=None)
 def init_database():
-    # Call "airflow standalone" for this project's repository.
+    # Call "airflow standalone" from this project's repository.
     @task
     def init():
         try:
