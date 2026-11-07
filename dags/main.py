@@ -15,6 +15,7 @@ def init_database():
     @task
     def init():
         try:
+            Path("data").mkdir(exist_ok=True)
             initialize_database()
         except Exception as error:
             raise RuntimeError(f"Database initialization failed: {error}") from error
