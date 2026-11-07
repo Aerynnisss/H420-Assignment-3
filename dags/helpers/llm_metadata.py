@@ -6,6 +6,7 @@ official `openai` Python package with a local base URL.
 
 import json
 import os
+from typing import cast
 
 from openai import OpenAI
 
@@ -50,39 +51,34 @@ def _ask_llm(markdown: str) -> str:
         response_format={"type": "json_object"},  # JSON mode
         temperature=0.2,  # low temperature = more stable answers
     )
-    return response.choices[0].message.content
+    return cast(str, response.choices[0].message.content)
 
 
 def _validate(data) -> dict:
     """Check that the required fields exist and have the expected basic type."""
     if not isinstance(data, dict):
-        raise ValueError("the answer is not a JSON object")
+        raise TypeError("the answer is not a JSON object")
     for field, expected_type in REQUIRED_FIELDS.items():
         if field not in data:
             raise ValueError(f"missing field '{field}'")
         if not isinstance(data[field], expected_type):
-            raise ValueError(f"field '{field}' should be of type {expected_type.__name__}")
+            raise TypeError(f"field '{field}' should be of type {expected_type.__name__}")
     if not all(isinstance(k, str) for k in data["keywords"]):
         raise ValueError("all keywords should be strings")
     # keep only the expected fields
     return {field: data[field] for field in REQUIRED_FIELDS}
 
 
-def extract_metadata(markdown: str) -> dict:
+def extract_metadata(filename: str, markdown: str) -> dict:
     """Return {"title", "summary", "keywords", "category"} for a paper in Markdown.
-
-    If the answer cannot be parsed or validated, we retry once.
     """
-    last_error = None
-    for attempt in (1, 2):  # first try + one retry
-        raw_answer = _ask_llm(markdown)
-        try:
-            data = json.loads(raw_answer)
-            return _validate(data)
-        except (json.JSONDecodeError, ValueError) as error:
-            last_error = error
-            print(f"Attempt {attempt} failed: {error}")
-    raise ValueError(f"The LLM did not return valid metadata after 2 attempts: {last_error}")
+    raw_answer = _ask_llm(markdown)
+    try:
+        data = json.loads(raw_answer)
+        return _validate(data)
+    except (json.JSONDecodeError, ValueError) as error:
+        print(f"Metadata extraction failed for {filename}: {error}")
+        raise
 
 
 if __name__ == "__main__":
@@ -91,4 +87,4 @@ if __name__ == "__main__":
 
     with open(sys.argv[1], encoding="utf-8") as file:
         paper = file.read()
-    print(json.dumps(extract_metadata(paper), indent=2, ensure_ascii=False))
+    print(json.dumps(extract_metadata(sys.argv[1], paper), indent=2, ensure_ascii=False))
