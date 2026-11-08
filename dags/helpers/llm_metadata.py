@@ -76,7 +76,7 @@ def extract_metadata(filename: str, markdown: str) -> dict:
     try:
         data = json.loads(raw_answer)
         return _validate(data)
-    except (json.JSONDecodeError, ValueError) as error:
+    except (json.JSONDecodeError, ValueError, TypeError) as error:
         print(f"Metadata extraction failed for {filename}: {error}")
         raise
 

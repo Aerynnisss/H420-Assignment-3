@@ -1,12 +1,15 @@
 import json
 import sqlite3
 from html import escape
+from pathlib import Path
 from typing import cast
 
-DATABASE = "data/papers.db"
+# Local database, outside the Google Drive-synced folder: <repository>/data/papers.db
+DATABASE = Path(__file__).resolve().parents[2] / "data" / "papers.db"
 
 
 def get_connection() -> sqlite3.Connection:
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DATABASE)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")

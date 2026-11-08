@@ -6,7 +6,7 @@ from helpers.db import DATABASE
 
 
 def get_connection():
-    conn = sqlite3.connect(f"file:{DATABASE}?mode=ro", uri=True, timeout=30)
+    conn = sqlite3.connect(f"{DATABASE.as_uri()}?mode=ro", uri=True, timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -45,7 +45,7 @@ def inspect_paper_database():
 
             logger.info("Papers by category:")
             for row in category_counts:
-                logger.info("%s: %df", row["category"], row["count"])
+                logger.info("%s: %d", row["category"], row["count"])
 
             logger.info("Most frequent keywords:")
             for row in keyword_counts:

@@ -1,22 +1,33 @@
 import logging
-from datetime import timedelta
+import os
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import cast
 
 from airflow.sdk import dag, task
 from helpers.db import generate_html, get_connection, initialize_database, insert_paper
+from helpers.discord_notify import notify_discord
 from helpers.llm_metadata import extract_metadata
 from pymupdf4llm import to_markdown
+
+# Folders shared with Google Drive (set PAPERS_DIR / OUTPUT_DIR to the synced folders).
+# By default, the folders of this repository are used.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PAPERS_DIR = Path(os.getenv("PAPERS_DIR", REPO_ROOT / "library" / "papers"))
+OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", REPO_ROOT / "library" / "output"))
+
+# A PDF modified less than this many seconds ago may still be syncing with Google Drive.
+MIN_FILE_AGE_SECONDS = int(os.getenv("MIN_FILE_AGE_SECONDS", "60"))
 
 
 @dag(dag_id="init_database", schedule=None)
 def init_database():
-    # Call "airflow standalone" from this project's repository.
+    # Optional: the database is also created automatically by paper_processing.
     @task
     def init():
         try:
-            Path("data").mkdir(exist_ok=True)
-            initialize_database()
+            initialize_database().close()
         except Exception as error:
             raise RuntimeError(f"Database initialization failed: {error}") from error
         print("Database created.")
@@ -24,15 +35,22 @@ def init_database():
     init()
 
 
-@dag(dag_id="paper_processing", schedule=None)
+@dag(
+    dag_id="paper_processing",
+    schedule="*/10 * * * *",  # look for new PDFs every 10 minutes
+    start_date=datetime(2026, 11, 1),
+    catchup=False,  # do not run for the past intervals since start_date
+    max_active_runs=1,  # never two runs at the same time
+)
 def paper_processing():
     # Returns filenames not in database.
     # "library/papers/Assignment 3.pdf" -> "Assignment 3"
     @task
     def discover_pdfs():
-        dir = Path("library/papers/")
-        conn = get_connection()
+        # Idempotent: creates the tables only if they do not exist yet.
+        initialize_database().close()
 
+        conn = get_connection()
         try:
             rows = conn.execute("SELECT filename FROM papers").fetchall()
             processed = {row[0] for row in rows}
@@ -42,18 +60,27 @@ def paper_processing():
         finally:
             conn.close()
 
-        result = [path.stem for path in dir.glob("*.pdf") if path.stem not in processed]
-        print(f"Found {len(result)} new papers in library/papers.")
+        now = time.time()
+        result = []
+        for path in sorted(PAPERS_DIR.glob("*.pdf")):
+            if path.stem in processed:
+                continue
+            if now - path.stat().st_mtime < MIN_FILE_AGE_SECONDS:
+                print(f"{path.name} was modified recently (maybe still syncing), skipped for now.")
+                continue
+            result.append(path.stem)
+
+        print(f"Found {len(result)} new papers in {PAPERS_DIR}.")
         return result
 
     # Input: filename WITHOUT path OR suffix!
-    # Example: convert("Assignment 3") -> this takes library/papers/Assignment 3.pdf
+    # Example: convert("Assignment 3") -> this takes PAPERS_DIR/Assignment 3.pdf
     # The library suggests installing RapidOCR, do so in the airflow venv.
     @task
     def convert(filename: str) -> tuple[str, str]:
         try:
             markdown = cast(
-                str, to_markdown(f"library/papers/{filename}.pdf")
+                str, to_markdown(str(PAPERS_DIR / f"{filename}.pdf"))
             )  # Cast calms down the type checker
         except Exception as error:
             raise RuntimeError(f"Failed to convert {filename}: {error}") from error
@@ -61,8 +88,9 @@ def paper_processing():
         print(f"Converted {filename}.")
         return filename, markdown
 
-    # Goto Admin -> Pools. Add pool "llm_pool" and set slots to 1.
-    @task(pool="llm_pool", retries=1, retry_delay=timedelta(seconds=30))
+    # Only one LLM call at a time (the model runs on the laptop).
+    # If the LLM answer cannot be parsed or validated, Airflow retries the task once.
+    @task(max_active_tis_per_dagrun=1, retries=1, retry_delay=timedelta(seconds=30))
     def llm_extract(converted: tuple[str, str]):
         filename, paper = converted
         metadata = extract_metadata(filename, paper)
@@ -87,19 +115,28 @@ def paper_processing():
                 insert_paper(conn, paper)
         finally:
             conn.close()
+        return paper  # passed on to the notification task
 
-    # Always runs even if everything else is skipped
-    @task
+    # Runs after all store tasks, even if they were skipped (no new PDF) or failed
+    @task(trigger_rule="all_done")
     def regen_html():
         html = generate_html()
-        with open("library/output/index.html", "w", encoding="utf-8") as file:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        with open(OUTPUT_DIR / "index.html", "w", encoding="utf-8") as file:
             file.write(html)
+        print(f"index.html written to {OUTPUT_DIR}.")
+
+    # One Discord notification per new paper
+    @task
+    def notify(paper: dict):
+        notify_discord(paper["filename"], paper)
 
     filenames = discover_pdfs()
     converted = convert.expand(filename=filenames)
     metadata = llm_extract.expand(converted=converted)
-    store.expand(paper=metadata)
-    regen_html()
+    stored = store.expand(paper=metadata)
+    stored >> regen_html()
+    notify.expand(paper=stored)
 
 
 init_database()
