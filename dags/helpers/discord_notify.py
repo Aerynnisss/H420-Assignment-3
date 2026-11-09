@@ -11,8 +11,7 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 def notify_discord(filename: str, meta: dict) -> None:
     """Post a short message with the paper's metadata to a Discord channel."""
     if not DISCORD_WEBHOOK_URL:
-        print("DISCORD_WEBHOOK_URL is not set: no notification sent.")
-        return
+        raise ValueError("DISCORD_WEBHOOK_URL is not set: no notification sent.")
 
     message = {
         "content": "📄 A new paper has been added to the study library!",

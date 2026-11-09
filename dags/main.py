@@ -10,7 +10,7 @@ from helpers.discord_notify import notify_discord
 from helpers.llm_metadata import extract_metadata
 from pymupdf4llm import to_markdown
 
-# Folders shared with Google Drive (set PAPERS_DIR / OUTPUT_DIR to the synced folders).
+# Folders shared with Google Drive (set PAPERS_DIR & OUTPUT_DIR to the synced folders).
 # By default, the folders of this repository are used.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PAPERS_DIR = Path(os.getenv("PAPERS_DIR", REPO_ROOT / "library" / "papers"))
