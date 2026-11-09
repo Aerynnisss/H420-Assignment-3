@@ -35,29 +35,6 @@ def initialize_database() -> sqlite3.Connection:
             ),
             category  TEXT NOT NULL
         );
-
-        -- Separate table for keywords
-        CREATE TABLE IF NOT EXISTS paper_keywords (
-            paper_id      INTEGER NOT NULL,
-            keyword       TEXT NOT NULL,
-
-            PRIMARY KEY (paper_id, keyword),
-
-            FOREIGN KEY (paper_id)
-                REFERENCES papers(id)
-                ON DELETE CASCADE
-        ) WITHOUT ROWID;
-
-        -- To improve performance when paper amounts start increasing,
-        -- the following indexes are created
-        CREATE INDEX IF NOT EXISTS idx_titles
-        ON papers(title);
-
-        CREATE INDEX IF NOT EXISTS idx_categories
-        ON papers(category);
-
-        CREATE INDEX IF NOT EXISTS idx_paper_keywords
-        ON paper_keywords(keyword);
     """)
 
     conn.commit()
@@ -90,14 +67,6 @@ def insert_paper(conn: sqlite3.Connection, paper: dict) -> int:
     )
 
     paper_id = cast(int, cursor.lastrowid)
-
-    conn.executemany(
-        """
-        INSERT INTO paper_keywords (paper_id, keyword)
-        VALUES (?, ?)
-        """,
-        [(paper_id, keyword) for keyword in keywords],
-    )
 
     return paper_id
 

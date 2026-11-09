@@ -34,9 +34,12 @@ def inspect_paper_database():
             """).fetchall()
 
             keyword_counts = conn.execute("""
-                SELECT keyword, COUNT(*) AS count
-                FROM paper_keywords
-                GROUP BY keyword
+                SELECT
+                    j.value AS keyword,
+                    COUNT(*) AS count
+                FROM papers AS p,
+                     json_each(p.keywords) AS j
+                GROUP BY j.value
                 ORDER BY count DESC
                 LIMIT 20
             """).fetchall()
@@ -66,11 +69,11 @@ def inspect_paper_database():
                     p.filename,
                     p.title,
                     p.category,
-                    GROUP_CONCAT(pk.keyword, ', ') AS keywords
+                    (
+                        SELECT GROUP_CONCAT(j.value, ', ')
+                        FROM json_each(p.keywords) AS j
+                    ) AS keywords
                 FROM papers AS p
-                LEFT JOIN paper_keywords AS pk
-                    ON p.id = pk.paper_id
-                GROUP BY p.id
                 ORDER BY p.id
                 LIMIT 50
             """).fetchall()
